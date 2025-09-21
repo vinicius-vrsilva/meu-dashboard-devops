@@ -1,0 +1,73 @@
+name: CI/CD do Dashboard DevOps
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_URI: 123456789012.dkr.ecr.sa-east-1.amazonaws.com/meu-dashboard-devops
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    steps:
+    - name: Checkout do Código
+      uses: actions/checkout@v3
+
+    - name: Configurar Credenciais AWS
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login no Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Construir Imagem Docker
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: meu-dashboard-devops
+        IMAGE_TAG: latest
+      run: |
+        docker build -t $ECR_REPOSITORY .
+
+    - name: Taggear e Enviar Imagem Docker para o ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: meu-dashboard-devops
+        IMAGE_TAG: latest
+      run: |
+        docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Configurar SSH para EC2
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+
+    - name: Deploy na Instância EC2
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: meu-dashboard-devops
+        IMAGE_TAG: latest
+      run: |
+        ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST << 'EOF'
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker stop meu-dashboard-devops || true
+          docker rm meu-dashboard-devops || true
+          docker run -d -p 5000:5000 --name meu-dashboard-devops $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        EOF
