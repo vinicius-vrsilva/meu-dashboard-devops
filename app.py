@@ -53,4 +53,4 @@ def index():
 if __name__ == '__main__':
     # Esta parte garante que o servidor Flask seja iniciado apenas quando executamos app.py diretamente
     app.run(debug=True, host='0.0.0.0')  # debug=True para ver erros, host='0.0.0.0' para ser acessível de fora do container
-    # Teste de workflow 21/09/2025
+    # Teste completo em 21/09/2025
