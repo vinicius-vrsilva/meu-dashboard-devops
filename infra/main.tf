@@ -133,20 +133,23 @@ resource "aws_instance" "dashboard_server" {
 
   # user_data é um script que será executado na primeira inicialização da instância.
   # Usamos ele para instalar o Docker e o Docker Compose.
-  user_data = <<-EOF
-              #!/bin/bash
-              sudo apt update -y
-              sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt update -y
-              sudo apt install -y docker-ce docker-ce-cli containerd.io
-              sudo usermod -aG docker ubuntu
-              # Instala Docker Compose
-              sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-              EOF
-
+ user_data = <<-EOF
+            #!/bin/bash
+            sudo apt update -y
+            sudo apt install -y apt-transport-https ca-certificates curl software-properties-common unzip
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt update -y
+            sudo apt install -y docker-ce docker-ce-cli containerd.io
+            sudo usermod -aG docker ubuntu
+            # Instala Docker Compose
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            # Instala AWS CLI
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+            EOF
   tags = {
     Name = "dashboard-server"
   }
