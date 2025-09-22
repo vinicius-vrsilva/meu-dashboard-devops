@@ -18,6 +18,7 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
     steps:
+
     - name: Checkout do Código
       uses: actions/checkout@v3
 
@@ -34,9 +35,7 @@ jobs:
 
     - name: Construir Imagem Docker
       env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: meu-dashboard-devops
-        IMAGE_TAG: latest
       run: |
         docker build -t $ECR_REPOSITORY .
 
@@ -44,17 +43,14 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: meu-dashboard-devops
-        IMAGE_TAG: latest
       run: |
         docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
     - name: Configurar SSH para EC2
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+        printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
 
@@ -62,12 +58,13 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: meu-dashboard-devops
-        IMAGE_TAG: latest
       run: |
         ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST << 'EOF'
+          set -euo pipefail
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
           docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker stop meu-dashboard-devops || true
           docker rm meu-dashboard-devops || true
           docker run -d -p 5000:5000 --name meu-dashboard-devops $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "Deploy finalizado!"
         EOF
